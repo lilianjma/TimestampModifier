@@ -1,7 +1,0 @@
-CHANGE METADATA
-    USE THIS Content Created: jhead -ts1980:04:11-0:0:00 *.JPG
-        g++ -std=c++17 -o modify_timestamps modify_timestamps.cpp
-        ./modify_timestamps <dir_name>
-    
-    Modified: touch -mt 198004110000 *.JPG
-    Created: SetFile -d '04/11/1980 00:00:00' *.JPG

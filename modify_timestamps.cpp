@@ -6,91 +6,344 @@
 #include <iomanip>
 #include <sstream>
 #include <cstdlib>
+#include <algorithm>
+#include <fstream>
+#include <ctime>
 
 namespace fs = std::filesystem;
 
-// std::string formatTimestamp(const std::chrono::system_clock::time_point& time) {
-//     std::time_t tt = std::chrono::system_clock::to_time_t(time);
-//     std::tm tm = *std::localtime(&tt);
 
-//     std::ostringstream oss;
-//     oss << std::put_time(&tm, "%Y:%m:%d-%H:%M:%S");
-//     return oss.str();
-// }
+// --------------------------------------------------
+// Read date from .date
+// --------------------------------------------------
 
-std::string formatTimestamp(const std::chrono::system_clock::time_point& time) {
-    std::time_t tt = std::chrono::system_clock::to_time_t(time);
+bool readDate(int& year, int& month, int& day) {
+    std::ifstream input(".date");
+
+    if (!input) {
+        std::cerr << "Could not open .date" << std::endl;
+        return false;
+    }
+
+    char dash1, dash2;
+
+    input >> year >> dash1 >> month >> dash2 >> day;
+
+    if (!input || dash1 != '-' || dash2 != '-') {
+        std::cerr
+            << "Invalid date in .date. "
+            << "Expected YYYY-MM-DD"
+            << std::endl;
+
+        return false;
+    }
+
+    return true;
+}
+
+
+// --------------------------------------------------
+// Increment date by exactly one calendar day
+// --------------------------------------------------
+
+bool incrementDate(int& year, int& month, int& day) {
+    std::tm date = {};
+
+    date.tm_year = year - 1900;
+    date.tm_mon  = month - 1;
+    date.tm_mday = day;
+
+    // Increment the calendar day.
+    date.tm_mday += 1;
+
+    // mktime normalizes the date automatically.
+    //
+    // Apr 30 -> May 1
+    // May 31 -> Jun 1
+    // Dec 31 -> Jan 1 of next year
+    //
+    if (std::mktime(&date) == -1) {
+        std::cerr << "Could not increment date" << std::endl;
+        return false;
+    }
+
+    year  = date.tm_year + 1900;
+    month = date.tm_mon + 1;
+    day   = date.tm_mday;
+
+    return true;
+}
+
+
+// --------------------------------------------------
+// Save date to .date
+// --------------------------------------------------
+
+bool saveDate(int year, int month, int day) {
+    std::ofstream output(".date");
+
+    if (!output) {
+        std::cerr << "Could not write to .date" << std::endl;
+        return false;
+    }
+
+    output << year << "-"
+           << std::setfill('0') << std::setw(2) << month << "-"
+           << std::setfill('0') << std::setw(2) << day
+           << std::endl;
+
+    return true;
+}
+
+
+// --------------------------------------------------
+// Format timestamp for EXIF
+// --------------------------------------------------
+
+std::string formatTimestamp(
+    const std::chrono::system_clock::time_point& time
+) {
+    std::time_t tt =
+        std::chrono::system_clock::to_time_t(time);
+
     std::tm tm = *std::localtime(&tt);
 
     std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y:%m:%d %H:%M:%S"); // Space between date and time
+
+    oss << std::put_time(
+        &tm,
+        "%Y:%m:%d %H:%M:%S"
+    );
+
     return oss.str();
 }
 
-void modifyTimestamps(const std::string& directory) {
+
+// --------------------------------------------------
+// Modify photo timestamps
+// --------------------------------------------------
+
+void modifyTimestamps(
+    const std::string& directory,
+    int year,
+    int month,
+    int day
+) {
     std::vector<fs::path> jpgFiles;
-    for (const auto& entry : fs::directory_iterator(directory)) {
-        if (entry.path().extension() == ".jpg" || entry.path().extension() == ".JPG") {
+
+    for (const auto& entry :
+         fs::directory_iterator(directory)) {
+
+        if (entry.path().extension() == ".jpg" ||
+            entry.path().extension() == ".JPG") {
+
             jpgFiles.push_back(entry.path());
         }
     }
 
     std::sort(jpgFiles.begin(), jpgFiles.end());
 
-    int month = 4;
-    int day = 28;
-    int year = 1980;
-    auto baseTime = std::chrono::system_clock::from_time_t(std::mktime(new std::tm{0, 0, 0, day, month-1, year-1900}));
+    std::tm start = {};
+
+    start.tm_year = year - 1900;
+    start.tm_mon  = month - 1;
+    start.tm_mday = day;
+
+    // Start at midnight.
+    start.tm_hour = 0;
+    start.tm_min  = 0;
+    start.tm_sec  = 0;
+
+    auto baseTime =
+        std::chrono::system_clock::from_time_t(
+            std::mktime(&start)
+        );
+
     int incrementSeconds = 0;
-    int updatedCount = 0;  // Counter for updated images
+    int updatedCount = 0;
 
     for (const auto& file : jpgFiles) {
-        auto newTime = baseTime + std::chrono::seconds(incrementSeconds);
-        std::string timestamp = formatTimestamp(newTime);
 
-        std::string command = "exiftool -overwrite_original -AllDates=\"" + timestamp + "\" \"" + file.string() + "\"";
+        // Each photo gets the same date, but one second
+        // later than the previous photo.
+        auto newTime =
+            baseTime +
+            std::chrono::seconds(incrementSeconds);
 
-        // std::cout << "Executing command: " << command << std::endl; // Debug output
+        std::string timestamp =
+            formatTimestamp(newTime);
+
+        std::string command =
+            "exiftool -overwrite_original "
+            "-AllDates=\"" +
+            timestamp +
+            "\" \"" +
+            file.string() +
+            "\"";
 
         int result = std::system(command.c_str());
 
         if (result == 0) {
-            std::cout << file.filename().string() << " updated" << std::endl;
+
+            std::cout
+                << file.filename().string()
+                << " updated to "
+                << timestamp
+                << std::endl;
+
+            updatedCount++;
+
         } else {
-            perror("System command error");
-            std::cerr << "Failed to execute command: " << command << " with code: " << result << std::endl;
+
+            std::cerr
+                << "Failed to update: "
+                << file.string()
+                << std::endl;
         }
 
-        incrementSeconds += 1;
+        incrementSeconds++;
     }
 
-    // Print the total number of files updated
-    std::cout << updatedCount << " image files updated" << std::endl;
+    std::cout
+        << updatedCount
+        << " image files updated"
+        << std::endl;
 }
 
-
-
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <directory_path>" << std::endl;
+    bool increment = false;
+    std::string directoryPath;
+
+    // ----------------------------------------------
+    // Parse arguments
+    // ----------------------------------------------
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "--incr") {
+            increment = true;
+        } else {
+            // Anything that isn't --incr is treated
+            // as the directory path.
+            if (!directoryPath.empty()) {
+                std::cerr << "Error: multiple directory paths provided."
+                          << std::endl;
+                return 1;
+            }
+
+            directoryPath = arg;
+        }
+    }
+
+    // ----------------------------------------------
+    // If --incr was supplied, increment the date
+    // ----------------------------------------------
+        // --------------------------------------------------
+    // Read current date
+    // --------------------------------------------------
+
+    int year;
+    int month;
+    int day;
+
+    if (!readDate(year, month, day)) {
         return 1;
     }
 
-    std::string directoryPath = argv[1];
+    // --------------------------------------------------
+    // Increment date if --incr was supplied
+    // --------------------------------------------------
 
-    if (!fs::exists(directoryPath) || !fs::is_directory(directoryPath)) {
-        std::cerr << "The provided path does not exist or is not a directory." << std::endl;
-        return 1;
+    if (increment)
+    {
+        std::cout
+            << "Current date: "
+            << year << "-"
+            << std::setfill('0') << std::setw(2) << month << "-"
+            << std::setfill('0') << std::setw(2) << day
+            << std::endl;
+
+        if (!incrementDate(year, month, day)) {
+            std::cerr
+                << "Failed to increment date."
+                << std::endl;
+            return 1;
+        }
+
+        if (!saveDate(year, month, day)) {
+            std::cerr
+                << "Failed to save date."
+                << std::endl;
+            return 1;
+        }
+
+        std::cout
+            << "Date incremented to: "
+            << year << "-"
+            << std::setfill('0') << std::setw(2) << month << "-"
+            << std::setfill('0') << std::setw(2) << day
+            << std::endl;
     }
 
-    // Check if jhead is available
-    // int jheadCheck = std::system("jhead -h > /dev/null 2>&1");
-    // if (jheadCheck != 0) {
-    //     std::cerr << "jhead command is not available. Please install jhead and try again." << std::endl;
-    //     return 1;
-    // }
+    // ----------------------------------------------
+    // If a directory was supplied, update photos
+    // ----------------------------------------------
 
-    modifyTimestamps(directoryPath);
+    if (!directoryPath.empty()) {
+
+        if (!fs::exists(directoryPath) ||
+            !fs::is_directory(directoryPath)) {
+
+            std::cerr
+                << "The provided path does not exist "
+                << "or is not a directory."
+                << std::endl;
+
+            return 1;
+        }
+
+        // If --incr wasn't specified, read the current
+        // date from .date.
+        if (!increment) {
+            if (!readDate(year, month, day)) {
+                return 1;
+            }
+        }
+
+        std::cout
+            << "Updating photos using date: "
+            << year << "-"
+            << std::setfill('0') << std::setw(2) << month << "-"
+            << std::setfill('0') << std::setw(2) << day
+            << std::endl;
+
+        modifyTimestamps(
+            directoryPath,
+            year,
+            month,
+            day
+        );
+
+        return 0;
+    }
+
+    // ----------------------------------------------
+    // No directory supplied
+    // ----------------------------------------------
+
+    if (!increment) {
+        std::cerr
+            << "Usage:"
+            << std::endl
+            << "  " << argv[0] << " /path/to/photos"
+            << std::endl
+            << "  " << argv[0] << " --incr"
+            << std::endl
+            << "  " << argv[0] << " --incr /path/to/photos"
+            << std::endl;
+
+        return 1;
+    }
 
     return 0;
 }
