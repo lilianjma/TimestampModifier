@@ -12,15 +12,15 @@
 
 namespace fs = std::filesystem;
 
-
 // --------------------------------------------------
 // Read date from .date
 // --------------------------------------------------
-
-bool readDate(int& year, int& month, int& day) {
+bool readDate(int &year, int &month, int &day)
+{
     std::ifstream input(".date");
 
-    if (!input) {
+    if (!input)
+    {
         std::cerr << "Could not open .date" << std::endl;
         return false;
     }
@@ -29,7 +29,8 @@ bool readDate(int& year, int& month, int& day) {
 
     input >> year >> dash1 >> month >> dash2 >> day;
 
-    if (!input || dash1 != '-' || dash2 != '-') {
+    if (!input || dash1 != '-' || dash2 != '-')
+    {
         std::cerr
             << "Invalid date in .date. "
             << "Expected YYYY-MM-DD"
@@ -41,48 +42,67 @@ bool readDate(int& year, int& month, int& day) {
     return true;
 }
 
-
 // --------------------------------------------------
 // Increment date by exactly one calendar day
 // --------------------------------------------------
-
-bool incrementDate(int& year, int& month, int& day) {
+bool incrementDate(int &year, int &month, int &day)
+{
     std::tm date = {};
 
     date.tm_year = year - 1900;
-    date.tm_mon  = month - 1;
+    date.tm_mon = month - 1;
     date.tm_mday = day;
 
-    // Increment the calendar day.
     date.tm_mday += 1;
 
-    // mktime normalizes the date automatically.
-    //
-    // Apr 30 -> May 1
-    // May 31 -> Jun 1
-    // Dec 31 -> Jan 1 of next year
-    //
-    if (std::mktime(&date) == -1) {
+    if (std::mktime(&date) == -1)
+    {
         std::cerr << "Could not increment date" << std::endl;
         return false;
     }
 
-    year  = date.tm_year + 1900;
+    year = date.tm_year + 1900;
     month = date.tm_mon + 1;
-    day   = date.tm_mday;
+    day = date.tm_mday;
 
     return true;
 }
 
+// --------------------------------------------------
+// Decrement date by exactly one calendar day
+// --------------------------------------------------
+bool decrementDate(int &year, int &month, int &day)
+{
+    std::tm date = {};
+
+    date.tm_year = year - 1900;
+    date.tm_mon = month - 1;
+    date.tm_mday = day;
+
+    date.tm_mday -= 1;
+
+    if (std::mktime(&date) == -1)
+    {
+        std::cerr << "Could not decrement date" << std::endl;
+        return false;
+    }
+
+    year = date.tm_year + 1900;
+    month = date.tm_mon + 1;
+    day = date.tm_mday;
+
+    return true;
+}
 
 // --------------------------------------------------
 // Save date to .date
 // --------------------------------------------------
-
-bool saveDate(int year, int month, int day) {
+bool saveDate(int year, int month, int day)
+{
     std::ofstream output(".date");
 
-    if (!output) {
+    if (!output)
+    {
         std::cerr << "Could not write to .date" << std::endl;
         return false;
     }
@@ -95,14 +115,12 @@ bool saveDate(int year, int month, int day) {
     return true;
 }
 
-
 // --------------------------------------------------
 // Format timestamp for EXIF
 // --------------------------------------------------
-
 std::string formatTimestamp(
-    const std::chrono::system_clock::time_point& time
-) {
+    const std::chrono::system_clock::time_point &time)
+{
     std::time_t tt =
         std::chrono::system_clock::to_time_t(time);
 
@@ -112,30 +130,29 @@ std::string formatTimestamp(
 
     oss << std::put_time(
         &tm,
-        "%Y:%m:%d %H:%M:%S"
-    );
+        "%Y:%m:%d %H:%M:%S");
 
     return oss.str();
 }
 
-
 // --------------------------------------------------
 // Modify photo timestamps
 // --------------------------------------------------
-
 void modifyTimestamps(
-    const std::string& directory,
+    const std::string &directory,
     int year,
     int month,
-    int day
-) {
+    int day)
+{
     std::vector<fs::path> jpgFiles;
 
-    for (const auto& entry :
-         fs::directory_iterator(directory)) {
+    for (const auto &entry :
+         fs::directory_iterator(directory))
+    {
 
         if (entry.path().extension() == ".jpg" ||
-            entry.path().extension() == ".JPG") {
+            entry.path().extension() == ".JPG")
+        {
 
             jpgFiles.push_back(entry.path());
         }
@@ -146,26 +163,24 @@ void modifyTimestamps(
     std::tm start = {};
 
     start.tm_year = year - 1900;
-    start.tm_mon  = month - 1;
+    start.tm_mon = month - 1;
     start.tm_mday = day;
 
     // Start at midnight.
     start.tm_hour = 0;
-    start.tm_min  = 0;
-    start.tm_sec  = 0;
+    start.tm_min = 0;
+    start.tm_sec = 0;
 
     auto baseTime =
         std::chrono::system_clock::from_time_t(
-            std::mktime(&start)
-        );
+            std::mktime(&start));
 
     int incrementSeconds = 0;
     int updatedCount = 0;
 
-    for (const auto& file : jpgFiles) {
+    for (const auto &file : jpgFiles)
+    {
 
-        // Each photo gets the same date, but one second
-        // later than the previous photo.
         auto newTime =
             baseTime +
             std::chrono::seconds(incrementSeconds);
@@ -183,7 +198,8 @@ void modifyTimestamps(
 
         int result = std::system(command.c_str());
 
-        if (result == 0) {
+        if (result == 0)
+        {
 
             std::cout
                 << file.filename().string()
@@ -192,8 +208,9 @@ void modifyTimestamps(
                 << std::endl;
 
             updatedCount++;
-
-        } else {
+        }
+        else
+        {
 
             std::cerr
                 << "Failed to update: "
@@ -210,24 +227,44 @@ void modifyTimestamps(
         << std::endl;
 }
 
-int main(int argc, char* argv[]) {
+// --------------------------------------------------
+// Main
+// --------------------------------------------------
+
+int main(int argc, char *argv[])
+{
+
     bool increment = false;
+    bool decrement = false;
     std::string directoryPath;
 
     // ----------------------------------------------
     // Parse arguments
     // ----------------------------------------------
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 1; i < argc; ++i)
+    {
+
         std::string arg = argv[i];
 
-        if (arg == "--incr") {
+        if (arg == "--incr")
+        {
+
             increment = true;
-        } else {
-            // Anything that isn't --incr is treated
-            // as the directory path.
-            if (!directoryPath.empty()) {
-                std::cerr << "Error: multiple directory paths provided."
-                          << std::endl;
+        }
+        else if (arg == "--decr")
+        {
+
+            decrement = true;
+        }
+        else
+        {
+
+            if (!directoryPath.empty())
+            {
+                std::cerr
+                    << "Error: multiple directory paths provided."
+                    << std::endl;
+
                 return 1;
             }
 
@@ -236,24 +273,35 @@ int main(int argc, char* argv[]) {
     }
 
     // ----------------------------------------------
-    // If --incr was supplied, increment the date
+    // Cannot increment and decrement simultaneously
     // ----------------------------------------------
-        // --------------------------------------------------
+    if (increment && decrement)
+    {
+
+        std::cerr
+            << "Error: cannot use --incr and --decr "
+            << "at the same time."
+            << std::endl;
+
+        return 1;
+    }
+
+    // ----------------------------------------------
     // Read current date
-    // --------------------------------------------------
+    // ----------------------------------------------
 
     int year;
     int month;
     int day;
 
-    if (!readDate(year, month, day)) {
+    if (!readDate(year, month, day))
+    {
         return 1;
     }
 
-    // --------------------------------------------------
-    // Increment date if --incr was supplied
-    // --------------------------------------------------
-
+    // ----------------------------------------------
+    // Increment date
+    // ----------------------------------------------
     if (increment)
     {
         std::cout
@@ -263,17 +311,21 @@ int main(int argc, char* argv[]) {
             << std::setfill('0') << std::setw(2) << day
             << std::endl;
 
-        if (!incrementDate(year, month, day)) {
+        if (!incrementDate(year, month, day))
+        {
             std::cerr
                 << "Failed to increment date."
                 << std::endl;
+
             return 1;
         }
 
-        if (!saveDate(year, month, day)) {
+        if (!saveDate(year, month, day))
+        {
             std::cerr
                 << "Failed to save date."
                 << std::endl;
+
             return 1;
         }
 
@@ -286,28 +338,59 @@ int main(int argc, char* argv[]) {
     }
 
     // ----------------------------------------------
-    // If a directory was supplied, update photos
+    // Decrement date
     // ----------------------------------------------
+    if (decrement)
+    {
 
-    if (!directoryPath.empty()) {
+        std::cout
+            << "Current date: "
+            << year << "-"
+            << std::setfill('0') << std::setw(2) << month << "-"
+            << std::setfill('0') << std::setw(2) << day
+            << std::endl;
+
+        if (!decrementDate(year, month, day))
+        {
+            std::cerr
+                << "Failed to decrement date."
+                << std::endl;
+
+            return 1;
+        }
+
+        if (!saveDate(year, month, day))
+        {
+            std::cerr
+                << "Failed to save date."
+                << std::endl;
+
+            return 1;
+        }
+
+        std::cout
+            << "Date decremented to: "
+            << year << "-"
+            << std::setfill('0') << std::setw(2) << month << "-"
+            << std::setfill('0') << std::setw(2) << day
+            << std::endl;
+    }
+
+    // ----------------------------------------------
+    // If directory supplied, update photos
+    // ----------------------------------------------
+    if (!directoryPath.empty())
+    {
 
         if (!fs::exists(directoryPath) ||
-            !fs::is_directory(directoryPath)) {
-
+            !fs::is_directory(directoryPath))
+        {
             std::cerr
                 << "The provided path does not exist "
                 << "or is not a directory."
                 << std::endl;
 
             return 1;
-        }
-
-        // If --incr wasn't specified, read the current
-        // date from .date.
-        if (!increment) {
-            if (!readDate(year, month, day)) {
-                return 1;
-            }
         }
 
         std::cout
@@ -331,7 +414,8 @@ int main(int argc, char* argv[]) {
     // No directory supplied
     // ----------------------------------------------
 
-    if (!increment) {
+    if (!increment && !decrement)
+    {
         std::cerr
             << "Usage:"
             << std::endl
@@ -339,7 +423,11 @@ int main(int argc, char* argv[]) {
             << std::endl
             << "  " << argv[0] << " --incr"
             << std::endl
+            << "  " << argv[0] << " --decr"
+            << std::endl
             << "  " << argv[0] << " --incr /path/to/photos"
+            << std::endl
+            << "  " << argv[0] << " --decr /path/to/photos"
             << std::endl;
 
         return 1;

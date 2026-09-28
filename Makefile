@@ -6,7 +6,7 @@ SRC := modify_timestamps.cpp
 
 DIR ?=
 
-.PHONY: all compile run incr clean
+.PHONY: all compile run incr decr runall deprocess clean
 
 # --------------------------------------------------
 # Default: compile only
@@ -24,18 +24,25 @@ $(TARGET): $(SRC)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
 
 # --------------------------------------------------
-# Update photos using the current date
+# Update photos using current stored date
 # make run DIR=/path/to/photos
 # --------------------------------------------------
 run: $(TARGET)
 	./$(TARGET) "$(DIR)"
 
 # --------------------------------------------------
-# Increment the stored date
+# Increment stored date
 # make incr
 # --------------------------------------------------
 incr: $(TARGET)
 	./$(TARGET) --incr
+
+# --------------------------------------------------
+# Decrement stored date
+# make decr
+# --------------------------------------------------
+decr: $(TARGET)
+	./$(TARGET) --decr
 
 # --------------------------------------------------
 # Increment date AND update photos
@@ -43,6 +50,13 @@ incr: $(TARGET)
 # --------------------------------------------------
 runall: $(TARGET)
 	./$(TARGET) --incr "$(DIR)"
+
+# --------------------------------------------------
+# Decrement date AND update photos
+# make deprocess DIR=/path/to/photos
+# --------------------------------------------------
+deprocess: $(TARGET)
+	./$(TARGET) --decr "$(DIR)"
 
 # --------------------------------------------------
 # Clean
