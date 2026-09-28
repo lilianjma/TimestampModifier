@@ -7,11 +7,10 @@ just changes the "Content created" metadata (different than the "Created" metada
 
 | Command | What it does |
 |---|---|
-| `make` | Compile the program only |
-| `make compile` | Compile the program only |
+| `make` or `make compile`| Compile the program only |
 | `make run DIR=/path/to/photos` | Update photos using the current `.date` |
 | `make incr` | Increment `.date` by one day |
-| `make process DIR=/path/to/photos` | Increment `.date` and update photos |
+| `make runall DIR=/path/to/photos` | Increment `.date` and update photos |
 | `make clean` | Delete the compiled program |
 
 

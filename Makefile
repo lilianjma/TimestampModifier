@@ -39,9 +39,9 @@ incr: $(TARGET)
 
 # --------------------------------------------------
 # Increment date AND update photos
-# make process DIR=/path/to/photos
+# make runall DIR=/path/to/photos
 # --------------------------------------------------
-process: $(TARGET)
+runall: $(TARGET)
 	./$(TARGET) --incr "$(DIR)"
 
 # --------------------------------------------------
